@@ -17,6 +17,8 @@ cd backend
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+```
+
 2) Simulator (new terminal)
 bash
 Copy code
@@ -50,11 +52,10 @@ sudo bash net-profiles/apply_profile.sh apply lo net-profiles/profiles/urban-los
 sudo bash net-profiles/apply_profile.sh clear lo
 Profiles: good.conf, urban-lossy-20.conf, tunnel-lossy-40.conf.
 
-S3 – Mission (basics)
+S3 – Mission (basics):
+
 Add waypoints on the map → Send Mission → GO/PAUSE/RESUME/RTL/STOP.
-
 The driver steers the simulated UGV towards the current WP (simple proportional control).
-
 Logs: download /api/v1/mission/log.csv (timestamp, state, idx, lat/lon, velocities).
 
 API sketch
