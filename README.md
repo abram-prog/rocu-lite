@@ -45,7 +45,7 @@ To use a real source:
 # USB webcam (index 0):
 export VIDEO_SRC=0
 ```
-# or RTSP:
+### or RTSP:
 ```bash
 export VIDEO_SRC="rtsp://user:pass@camera-ip/path"
 ```
