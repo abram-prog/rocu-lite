@@ -1,3 +1,12 @@
+![Python](https://img.shields.io/badge/Python-3.10%20|%203.11-3776AB?logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)
+![WebRTC](https://img.shields.io/badge/WebRTC-Video%20Streaming-333333?logo=webrtc&logoColor=white)
+![OpenCV](https://img.shields.io/badge/OpenCV-Image%20Processing-5C3EE8?logo=opencv&logoColor=white)
+![Leaflet](https://img.shields.io/badge/Leaflet-Map%20UI-199900?logo=leaflet&logoColor=white)
+![Ubuntu](https://img.shields.io/badge/Ubuntu-22.04-E95420?logo=ubuntu&logoColor=white)
+![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
+
+
 # ROCU-Lite — Edge Control + Video + Mission (S1–S3)
 
 **Overview.** Minimal operator ↔ UGV stack built for reliability under poor networks:
