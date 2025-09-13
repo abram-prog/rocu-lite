@@ -1,0 +1,316 @@
+
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <title>ROCU‑Lite — Operator UI (Sprint 1)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 20px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .card { border: 1px solid #ddd; border-radius: 12px; padding: 16px; }
+    h2 { margin: 0 0 8px 0; }
+    label { display: block; margin: 6px 0 2px; }
+    input { width: 100%; padding: 8px; }
+    button { padding: 10px 14px; border-radius: 10px; border: 1px solid #888; background: #fafafa; cursor: pointer; }
+    .ok { color: #1565c0; }
+    .warn { color: #d32f2f; }
+    pre { max-height: 300px; overflow: auto; background: #fafafa; padding: 10px; border-radius: 8px; }
+    .row { display: flex; gap: 8px; align-items: center; }
+    .video-wrap{
+      width:100%;
+      max-width:1200px;            /* под свой лэйаут */
+      margin-top:8px;
+      background:#000;
+      border-radius:8px;
+      overflow:hidden;
+      position:relative;
+      aspect-ratio: var(--ratio, 16/9); /* по умолчанию 16:9, потом заменим на реальное */
+    }
+    .video-wrap > video{
+      position:absolute; inset:0;
+      width:100%; height:100%;
+      object-fit: contain;          /* поставь cover, если хочешь без полос (будет лёгкая обрезка) */
+    }
+  </style>
+</head>
+<body>
+  <h1>ROCU‑Lite — Operator UI</h1>
+  <div class="grid">
+    <div class="card" style="grid-column: 1 / span 2;">
+      <h2>Mission</h2>
+      <div id="map" style="height:360px;border-radius:8px;"></div>
+      <div class="row" style="margin-top:8px;">
+        <button id="wpAdd">Add Waypoint (click on map)</button>
+        <button id="wpSend">Send Mission</button>
+        <button id="wpClear">Clear</button>
+        <button id="wpGo">GO</button>
+        <button id="wpPause">PAUSE</button>
+        <button id="wpRTL">RTL</button>
+      </div>
+      <pre id="wpList"></pre>
+    </div>
+    <div class="card">
+      <h2>Status</h2>
+      <div id="status">Loading…</div>
+      <div class="row">
+        <button id="refresh">Refresh</button>
+        <span id="uptime"></span>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Drive</h2>
+      <label>vx (m/s)</label><input id="vx" type="number" step="0.1" value="0.5" />
+      <label>vy (m/s)</label><input id="vy" type="number" step="0.1" value="0.0" />
+      <label>wz (rad/s)</label><input id="wz" type="number" step="0.1" value="0.2" />
+      <br />
+      <button id="send">Send Command</button>
+      <div id="ack"></div>
+    </div>
+    <div class="card" style="grid-column: 1 / span 2;">
+      <h2>Live Telemetry</h2>
+      <pre id="telemetry"></pre>
+    </div>
+    <div class="card" style="grid-column: 1 / span 2;">
+      <h2>Video (WebRTC)</h2>
+      <div class="row">
+        <button id="videoStart">Start</button>
+        <button id="videoStop">Stop</button>
+        <label style="margin-left:12px;">Max bitrate (kbps)</label>
+        <input id="maxKbps" type="number" step="100" value="1500" style="width:120px;" />
+      </div>
+      <div class="video-wrap" id="videoWrap">
+        <video id="v" playsinline autoplay muted></video>
+      </div>
+      <div id="videoStatus"></div>
+    </div>
+  </div>
+
+<script>
+const metricsEl = document.getElementById('status');
+const uptimeEl = document.getElementById('uptime');
+const refreshBtn = document.getElementById('refresh');
+const telemetryEl = document.getElementById('telemetry');
+const sendBtn = document.getElementById('send');
+const ackEl = document.getElementById('ack');
+
+async function fetchMetrics() {
+  const res = await fetch('/api/v1/metrics');
+  const data = await res.json();
+  metricsEl.innerHTML = `
+    sim_connected: <b>${data.sim_connected}</b><br/>
+    telemetry_clients: <b>${data.telemetry_clients}</b><br/>
+    last_telemetry_ts: <b>${(data.last_telemetry_ts||0).toFixed(3)}</b><br/>
+    last_cmd_ts: <b>${(data.last_cmd_ts||0).toFixed(3)}</b><br/>
+    safe_mode: <b class="${data.safe_mode ? 'warn' : 'ok'}">${data.safe_mode}</b>
+  `;
+  uptimeEl.textContent = `uptime: ${data.uptime_s.toFixed(1)}s`;
+}
+
+refreshBtn.onclick = fetchMetrics;
+
+async function sendDrive() {
+  const vx = parseFloat(document.getElementById('vx').value || '0');
+  const vy = parseFloat(document.getElementById('vy').value || '0');
+  const wz = parseFloat(document.getElementById('wz').value || '0');
+  const ts = Date.now()/1000;
+  const res = await fetch('/api/v1/cmd/drive', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ts, vx, vy, wz})
+  });
+  const data = await res.json();
+  ackEl.textContent = `accepted=${data.accepted} rtt=${data.rtt_ms.toFixed(2)}ms`;
+  fetchMetrics();
+}
+sendBtn.onclick = sendDrive;
+
+// Telemetry WebSocket
+let ws;
+function connectWS() {
+  ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws/telemetry');
+  ws.onopen = () => { console.log('WS telemetry connected'); };
+  ws.onmessage = (ev) => {
+    try {
+      const obj = JSON.parse(ev.data);
+      if (obj.type === 'telemetry') {
+        telemetryEl.textContent = JSON.stringify(obj.data, null, 2);
+        onTelemetry(obj);
+      }
+    } catch (e) {}
+  };
+  ws.onclose = () => { setTimeout(connectWS, 1000); };
+}
+connectWS();
+fetchMetrics();
+setInterval(fetchMetrics, 1500);
+
+let pc=null;
+async function startVideo(){
+  const v=document.getElementById('v');
+  const status=document.getElementById('videoStatus');
+  const maxKbps=parseInt(document.getElementById('maxKbps').value||'1500',10);
+  if(pc){status.textContent='Already running';return;}
+  pc=new RTCPeerConnection({iceServers:[{urls:["stun:stun.l.google.com:19302"]}]});
+  pc.ontrack=(ev)=>{v.srcObject=ev.streams[0];};
+  pc.onconnectionstatechange=()=>{status.textContent=`Peer: ${pc.connectionState}`;};
+  pc.addTransceiver('video',{direction:'recvonly'});
+  const offer=await pc.createOffer();
+  await pc.setLocalDescription(offer);
+  const resp=await fetch('/api/v1/webrtc/offer',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sdp:offer.sdp,type:offer.type,max_kbps:maxKbps})});
+  const data=await resp.json();
+  await pc.setRemoteDescription({sdp:data.sdp,type:data.type});
+  status.textContent='Answer set, receiving...';
+}
+function stopVideo(){
+  const v=document.getElementById('v');
+  if(pc){pc.close();pc=null;}
+  v.srcObject=null;
+  document.getElementById('videoStatus').textContent='Stopped';
+}
+document.getElementById('videoStart').onclick=startVideo;
+document.getElementById('videoStop').onclick=stopVideo;
+(function(){
+  const v = document.getElementById('v');
+  const wrap = document.getElementById('videoWrap');
+  function syncAspect(){
+    if (v.videoWidth && v.videoHeight) {
+      wrap.style.setProperty('--ratio', v.videoWidth / v.videoHeight);
+    }
+  }
+  v.addEventListener('loadedmetadata', syncAspect);
+  v.addEventListener('resize',          syncAspect);
+})();
+
+let lastTuneAt = 0;
+const TUNE_COOLDOWN_MS = 3500;
+const TUNE_MIN_DELTA_KBPS = 200;       // не меньше 200 кбит/с
+const TUNE_MIN_DELTA_RATIO = 0.15;     // и не меньше 15%
+
+async function pollWebRTCStats(){
+  if(!pc) return;
+  const stats = await pc.getStats();
+  let inbound=null, pair=null;
+  stats.forEach(s=>{
+    if(s.type==='inbound-rtp' && s.kind==='video') inbound = s;
+    if(s.type==='candidate-pair' && s.state==='succeeded') pair = s;
+  });
+  if(inbound){
+    const now = Date.now();
+    const nowTs   = inbound.timestamp/1000;
+    const bytes   = inbound.bytesReceived || 0;
+    const prevB   = window._prevBytes ?? bytes;
+    const prevTs  = window._prevTs    ?? nowTs;
+
+    const deltaB  = Math.max(0, bytes - prevB);
+    const deltaT  = Math.max(0.001, nowTs - prevTs);
+
+    const bitrateKbps = Math.round((deltaB * 8 / 1000) / deltaT);
+
+    window._prevBytes = bytes;
+    window._prevTs    = nowTs;
+
+    // Отправим на бекенд и дождёмся рекомендации
+    try {
+      const resp = await fetch('/api/v1/webrtc/qos', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({
+          ts: now/1000,
+          bitrate_kbps: bitrateKbps,
+          framesDropped: inbound.framesDropped || 0,
+          packetsLost: inbound.packetsLost || 0,
+          jitter: inbound.jitter || 0,
+          rtt_ms: pair && pair.currentRoundTripTime ? pair.currentRoundTripTime*1000 : null
+        })
+      });
+      const data = await resp.json();
+
+      if (data && data.recommend_max_kbps) {
+        const now = Date.now();
+        const target  = Number(data.recommend_max_kbps);
+        const input   = document.getElementById('maxKbps');
+        const current = Number(input.value || '1500');
+
+        const bigDelta =
+          Math.abs(target - current) >= TUNE_MIN_DELTA_KBPS ||
+          Math.abs(target - current) / Math.max(1, current) >= TUNE_MIN_DELTA_RATIO;
+
+        if (bigDelta && (now - lastTuneAt > TUNE_COOLDOWN_MS)) {
+          input.value = String(target);
+          stopVideo();              // мягкий рестарт НЕ чаще раза в 5 секунд
+          await startVideo();
+          lastTuneAt = now;
+        } else {
+          // мелкие колебания — просто обновим поле, поток не трогаем
+          input.value = String(target);
+        }
+      }
+    } catch (e) {
+      // молча игнорируем временные ошибки сети
+    }
+
+    document.getElementById('videoStatus').textContent =
+      `bitrate≈${bitrateKbps}kbps, lost=${inbound.packetsLost||0}, jitter=${(inbound.jitter||0).toFixed(3)}, rtt=${pair&&pair.currentRoundTripTime?Math.round(pair.currentRoundTripTime*1000):'-'}ms`;
+  }
+}
+const QOS_PERIOD_MS = 450;        // или 500 — чуть меньше шума
+setInterval(() => { pollWebRTCStats().catch(()=>{}); }, QOS_PERIOD_MS);
+
+let map, wp = [], robotMarker = null, addMode = false, wpLayer;
+
+function initMap(){
+  map = L.map('map').setView([32.0853, 34.7818], 15);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
+  wpLayer = L.layerGroup().addTo(map);
+  map.on('click',(e)=>{
+    if(!addMode) return;
+    wp.push({lat:e.latlng.lat, lon:e.latlng.lng, hold_s:0});
+    L.circleMarker(e.latlng,{radius:4}).addTo(wpLayer);
+    document.getElementById('wpList').textContent = JSON.stringify(wp,null,2);
+  });
+}
+initMap();
+
+// Обновлять позицию робота из телеметрии
+function updateRobot(lat, lon){
+  if(!map) return;
+  if(!robotMarker){
+    robotMarker = L.circleMarker([lat,lon],{radius:6,color:'#1565c0'}).addTo(map);
+  }else{
+    robotMarker.setLatLng([lat,lon]);
+  }
+}
+
+// Кнопки
+const addBtn = document.getElementById('wpAdd');
+addBtn.onclick = ()=>{
+  addMode = !addMode;
+  addBtn.style.background = addMode ? '#e8f0fe' : '#fafafa';
+  addBtn.style.borderColor = addMode ? '#1565c0' : '#888';
+};
+document.getElementById('wpClear').onclick=()=>{
+  wp = [];
+  document.getElementById('wpList').textContent = '[]';
+  if (wpLayer) wpLayer.clearLayers();   // ← удаляем все точки с карты
+  addMode = false;                      // по желанию: выключаем режим добавления
+};
+document.getElementById('wpSend').onclick=async ()=>{
+  await fetch('/api/v1/mission', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({waypoints:wp})});
+};
+document.getElementById('wpGo').onclick=()=>fetch('/api/v1/mission/control',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'GO'})});
+document.getElementById('wpPause').onclick=()=>fetch('/api/v1/mission/control',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'PAUSE'})});
+document.getElementById('wpRTL').onclick=()=>fetch('/api/v1/mission/control',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'RTL'})});
+
+// Подхват координат из telemetry WS (добавь вызов в onmessage):
+// telemetryEl.textContent = JSON.stringify(obj.data, null, 2);
+function onTelemetry(obj){
+  try{
+    updateRobot(obj.data.lat, obj.data.lon);
+  }catch(e){}
+}
+
+</script>
+</body>
+</html>
