@@ -20,36 +20,40 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
 2) Simulator (new terminal)
-bash
-Copy code
+```bash
+#Copy code
 cd simulator
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 BACKEND_URL="ws://127.0.0.1:8000/ws/sim" python ugv_sim.py
+```
 Open http://127.0.0.1:8000/ — you should see live telemetry, drive commands, and the Video (WebRTC) panel.
 
 S2 – Video (WebRTC)
 Default source is synthetic (moving bars). To use a real source:
 
-bash
+```bash
 Copy code
 # USB webcam (index 0):
 export VIDEO_SRC=0
-
+```
 # or RTSP:
+```bash
 export VIDEO_SRC="rtsp://user:pass@camera-ip/path"
+```
 In UI press Start. You can lower Max bitrate (kbps) for harsh networks.
 
 Network degradation (tc/netem)
 Linux/WSL2 + root required. We shape the loopback lo to mimic MANET loss/jitter.
 
-bash
-Copy code
+```bash
+#Copy code
 # apply a profile
 sudo bash net-profiles/apply_profile.sh apply lo net-profiles/profiles/urban-lossy-20.conf
 
 # clear shaping
 sudo bash net-profiles/apply_profile.sh clear lo
+```
 Profiles: good.conf, urban-lossy-20.conf, tunnel-lossy-40.conf.
 
 S3 – Mission (basics):
