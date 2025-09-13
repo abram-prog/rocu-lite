@@ -2,6 +2,8 @@
 
 **Overview.** Minimal operator ↔ UGV stack built for reliability under poor networks:
 
+![-](docs/img/main-rocu-lite.png)
+
 - **S1 – Control & Telemetry:** FastAPI backend, WebSocket telem fan-out, heartbeat/safety gate, tc/netem profiles.
 - **S2 – Video (WebRTC):** server-side WebRTC answer (aiortc), synthetic/USB/RTSP source, max bitrate cap.
 - **S3 – Mission (basics):** map UI, waypoints, simple mission driver (move-to-WP), CSV logging.
