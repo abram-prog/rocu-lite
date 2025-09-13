@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+.venv/
+.env
+# Editor/OS
+.vscode/
+.idea/
+.DS_Store
+# Build/Dist
+dist/
+build/
+# Project-specific
+backend/app/__pycache__/
+simulator/__pycache__/
+net-profiles/*.tmp
+# Logs
+*.log
+*.jsonl
