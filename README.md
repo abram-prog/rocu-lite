@@ -31,16 +31,9 @@ pip install -r requirements.txt
 BACKEND_URL="ws://127.0.0.1:8000/ws/sim" python ugv_sim.py
 ```
 
-Open http://127.0.0.1:8000/ — you should see live telemetry, drive commands, and the Video (WebRTC) panel.
-
-
 Then open: [http://127.0.0.1:8000/](http://127.0.0.1:8000/) — you should see live telemetry, drive commands, and the Video (WebRTC) panel.
 
-
-```bash
-Copy code
-=======
-```
+---
 
 ## S2 – Video (WebRTC)
 
@@ -56,10 +49,6 @@ export VIDEO_SRC=0
 ```bash
 export VIDEO_SRC="rtsp://user:pass@camera-ip/path"
 ```
-
-In UI press Start. You can lower Max bitrate (kbps) for harsh networks.
-
-
 
 In UI press **Start**. You can lower *Max bitrate (kbps)* for harsh networks.
 
@@ -78,22 +67,13 @@ sudo bash net-profiles/apply_profile.sh apply lo net-profiles/profiles/urban-los
 sudo bash net-profiles/apply_profile.sh clear lo
 ```
 
-
-Profiles: good.conf, urban-lossy-20.conf, tunnel-lossy-40.conf.
-
-S3 – Mission (basics):
-
-**Add waypoints on the map → Send Mission → GO/PAUSE/RESUME/RTL/STOP.**
-The driver steers the simulated UGV towards the current WP (simple proportional control).
-Logs: download /api/v1/mission/log.csv (timestamp, state, idx, lat/lon, velocities).
-
 Profiles available: `good.conf`, `urban-lossy-20.conf`, `tunnel-lossy-40.conf`.
 
 ---
 
 ## S3 – Mission (basics)
 
-Add waypoints on the map → Send Mission → GO / PAUSE / RESUME / RTL / STOP.  
+**Add waypoints on the map → Send Mission → GO/PAUSE/RESUME/RTL/STOP.**
 The driver steers the simulated UGV towards the current WP (simple proportional control).
 
 Logs: download from `/api/v1/mission/log.csv` (timestamp, state, idx, lat/lon, velocities).
